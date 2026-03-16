@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RPN lexer and parser for arithmetic expressions.
+"""RPN lexer/parser and ARMv7 assembly generator.
 
 Implementation constraints honored:
 - No regex/parsing libraries.
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import sys
 from dataclasses import dataclass
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional
 
 
 TOKEN_LPAREN = "LPAREN"
@@ -331,22 +331,208 @@ class Parser:
         tok = self.peek()
         raise ParserError(f"{message} at line {tok.line}, col {tok.column}")
 
-def main(argv):
-    if len(argv) != 2:
-        print('Usage: python compiler.py <input.rpn>')
-        return 1
 
-    with open(argv[1], 'r', encoding='utf-8') as src:
-        text = src.read()
+class ARMv7Codegen:
+    def __init__(self):
+        self.mem_symbols: Dict[str, str] = {}
+        self.float_literals: Dict[str, str] = {}
+        self.res_labels: List[str] = []
+        self.text_lines: List[str] = []
+        self.reg_pool = [f"d{i}" for i in range(14, -1, -1)]
+        self.current_line_index = 0
+        self.label_counter = 0
+        self.uses_pow = False
 
+    def compile(self, exprs: List[Expr]) -> str:
+        self.res_labels = [f"res_{i}" for i in range(len(exprs))]
+
+        self.text_lines.append(".global _start")
+        self.text_lines.append(".text")
+        self.text_lines.append("_start:")
+
+        for idx, expr in enumerate(exprs):
+            self.current_line_index = idx
+            result_reg = self.emit_expr(expr)
+            self.text_lines.append(f"    ldr r10, ={self.res_labels[idx]}")
+            self.text_lines.append(f"    vstr.f64 {result_reg}, [r10]")
+            self.release_reg(result_reg)
+
+        self.text_lines.append("    b .")
+
+        if self.uses_pow:
+            self.emit_pow_helper()
+
+        data_lines = [".data"]
+        for label in self.res_labels:
+            data_lines.append(f"{label}: .double 0.0")
+
+        for _, label in sorted(self.mem_symbols.items(), key=lambda x: x[1]):
+            data_lines.append(f"{label}: .double 0.0")
+
+        for value, label in sorted(self.float_literals.items(), key=lambda x: x[1]):
+            data_lines.append(f"{label}: .double {value}")
+
+        return "\n".join(self.text_lines + [""] + data_lines) + "\n"
+
+    def emit_expr(self, expr: Expr) -> str:
+        if isinstance(expr, Number):
+            reg = self.allocate_reg()
+            lit = self.get_literal(expr.value)
+            self.text_lines.append(f"    ldr r10, ={lit}")
+            self.text_lines.append(f"    vldr.f64 {reg}, [r10]")
+            return reg
+
+        if isinstance(expr, MemLoad):
+            reg = self.allocate_reg()
+            mem = self.get_mem_label(expr.name)
+            self.text_lines.append(f"    ldr r10, ={mem}")
+            self.text_lines.append(f"    vldr.f64 {reg}, [r10]")
+            return reg
+
+        if isinstance(expr, MemStore):
+            reg = self.emit_expr(expr.value)
+            mem = self.get_mem_label(expr.name)
+            self.text_lines.append(f"    ldr r10, ={mem}")
+            self.text_lines.append(f"    vstr.f64 {reg}, [r10]")
+            return reg
+
+        if isinstance(expr, ResRef):
+            reg = self.allocate_reg()
+            target = self.current_line_index - expr.offset - 1
+            if target < 0:
+                lit = self.get_literal("0.0")
+                self.text_lines.append(f"    ldr r10, ={lit}")
+                self.text_lines.append(f"    vldr.f64 {reg}, [r10]")
+            else:
+                self.text_lines.append(f"    ldr r10, ={self.res_labels[target]}")
+                self.text_lines.append(f"    vldr.f64 {reg}, [r10]")
+            return reg
+
+        if isinstance(expr, Binary):
+            left_reg = self.emit_expr(expr.left)
+            right_reg = self.emit_expr(expr.right)
+
+            if expr.op == "+":
+                self.text_lines.append(f"    vadd.f64 {left_reg}, {left_reg}, {right_reg}")
+            elif expr.op == "-":
+                self.text_lines.append(f"    vsub.f64 {left_reg}, {left_reg}, {right_reg}")
+            elif expr.op == "*":
+                self.text_lines.append(f"    vmul.f64 {left_reg}, {left_reg}, {right_reg}")
+            elif expr.op == "/":
+                self.text_lines.append(f"    vdiv.f64 {left_reg}, {left_reg}, {right_reg}")
+            elif expr.op == "^":
+                self.uses_pow = True
+                self.get_literal("1.0")
+                self.text_lines.append(f"    vcvtr.s32.f64 s31, {right_reg}")
+                self.text_lines.append("    vmov r0, s31")
+                self.text_lines.append(f"    vmov.f64 d0, {left_reg}")
+                self.text_lines.append("    bl pow_pos_int")
+                self.text_lines.append(f"    vmov.f64 {left_reg}, d0")
+            elif expr.op in {"//", "%"}:
+                label_id = self.new_label_id()
+                zero_label = f"intop_zero_{label_id}"
+                done_label = f"intop_done_{label_id}"
+
+                self.text_lines.append(f"    vcvtr.s32.f64 s31, {left_reg}")
+                self.text_lines.append("    vmov r0, s31")
+                self.text_lines.append(f"    vcvtr.s32.f64 s30, {right_reg}")
+                self.text_lines.append("    vmov r1, s30")
+                self.text_lines.append("    cmp r1, #0")
+                self.text_lines.append(f"    beq {zero_label}")
+                self.text_lines.append("    sdiv r2, r0, r1")
+                if expr.op == "%":
+                    self.text_lines.append("    mls r2, r2, r1, r0")
+                self.text_lines.append(f"    b {done_label}")
+                self.text_lines.append(f"{zero_label}:")
+                self.text_lines.append("    mov r2, #0")
+                self.text_lines.append(f"{done_label}:")
+                self.text_lines.append("    vmov s31, r2")
+                self.text_lines.append(f"    vcvt.f64.s32 {left_reg}, s31")
+            else:
+                raise CodegenError(f"Unsupported operator: {expr.op}")
+
+            self.release_reg(right_reg)
+            return left_reg
+
+        raise CodegenError(f"Unsupported expression type: {type(expr).__name__}")
+
+    def get_mem_label(self, name: str) -> str:
+        if name not in self.mem_symbols:
+            self.mem_symbols[name] = f"mem_{name}"
+        return self.mem_symbols[name]
+
+    def get_literal(self, value: str) -> str:
+        norm = value
+        if value.startswith("+"):
+            norm = value[1:]
+        if norm not in self.float_literals:
+            self.float_literals[norm] = f"const_{len(self.float_literals)}"
+        return self.float_literals[norm]
+
+    def allocate_reg(self) -> str:
+        if not self.reg_pool:
+            raise CodegenError("Out of VFP registers")
+        return self.reg_pool.pop()
+
+    def release_reg(self, reg: str) -> None:
+        self.reg_pool.append(reg)
+
+    def new_label_id(self) -> int:
+        self.label_counter += 1
+        return self.label_counter
+
+    def emit_pow_helper(self) -> None:
+        one_label = self.get_literal("1.0")
+        self.text_lines.append("pow_pos_int:")
+        self.text_lines.append("    push {r4, lr}")
+        self.text_lines.append("    vmov.f64 d1, d0")
+        self.text_lines.append(f"    ldr r4, ={one_label}")
+        self.text_lines.append("    vldr.f64 d0, [r4]")
+        self.text_lines.append("    cmp r0, #0")
+        self.text_lines.append("    ble pow_done")
+        self.text_lines.append("pow_loop:")
+        self.text_lines.append("    vmul.f64 d0, d0, d1")
+        self.text_lines.append("    subs r0, r0, #1")
+        self.text_lines.append("    bgt pow_loop")
+        self.text_lines.append("pow_done:")
+        self.text_lines.append("    pop {r4, pc}")
+
+
+def compile_source(text: str) -> str:
     lexer = DFALexer(text)
     tokens = lexer.lex()
     parser = Parser(tokens)
     exprs = parser.parse_program()
-    for i, expr in enumerate(exprs):
-        print(f'Line {i}: {expr}')
+    codegen = ARMv7Codegen()
+    return codegen.compile(exprs)
+
+
+def main(argv: List[str]) -> int:
+    if len(argv) == 2 and argv[1] == "--stdin":
+        text = sys.stdin.read()
+        asm = compile_source(text)
+        sys.stdout.write(asm)
+        return 0
+
+    if len(argv) != 3:
+        print("Usage: python compiler.py <input.rpn> <output.s>")
+        print("   or: python compiler.py --stdin")
+        return 1
+
+    input_path = argv[1]
+    output_path = argv[2]
+
+    with open(input_path, "r", encoding="utf-8") as src:
+        text = src.read()
+
+    asm = compile_source(text)
+
+    with open(output_path, "w", encoding="utf-8") as out:
+        out.write(asm)
+
+    print(f"Assembly generated: {output_path}")
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     raise SystemExit(main(sys.argv))
