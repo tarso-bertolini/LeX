@@ -1,0 +1,14 @@
+{
+  "name": "lex-armv7-web-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "validate": "python3 validate_requirements.py"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
