@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LeX ARMv7 Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero reveal">
+        <div class="hero-copy">
+          <p class="eyebrow">FORMAL LANGUAGES · PHASE 1</p>
+          <h1>RPN to ARMv7 Assembly</h1>
+          <p class="subtitle">
+            Compile reverse-polish expressions into ARMv7 DEC1-SOC assembly using the project DFA lexer, nested parser, and backend generator.
+          </p>
+        </div>
+        <div class="hero-meta">
+          <span class="pill">DFA Lexer</span>
+          <span class="pill">ARMv7 VFP</span>
+          <span class="pill">Nested RPN</span>
+        </div>
+      </header>
+
+      <section class="tips reveal delay-1">
+        <article class="tip-card">
+          <h2>How to Write Input</h2>
+          <p>Use one expression per line. Example forms: <span class="inline-sample">(3 2 +)</span>, <span class="inline-sample">(VAR)</span>, <span class="inline-sample">(0 RES)</span>.</p>
+        </article>
+        <article class="tip-card">
+          <h2>Quick Controls</h2>
+          <p>Press <span class="inline-sample">Cmd/Ctrl + Enter</span> to compile faster while editing.</p>
+        </article>
+      </section>
+
+      <section class="panel reveal delay-2">
+        <div class="panel-head">
+          <h2>Source Program</h2>
+          <div class="quick-actions">
+            <button id="sampleBtn" type="button" class="ghost">Load Sample</button>
+            <button id="compileBtn" type="button" class="primary">Compile</button>
+          </div>
+        </div>
+        <label class="field-label" for="source">RPN input</label>
+        <textarea id="source" spellcheck="false"></textarea>
+        <p id="status" class="status">Ready.</p>
+      </section>
+
+      <section class="panel reveal delay-3">
+        <div class="panel-head">
+          <h2>Generated Assembly</h2>
+          <button id="copyBtn" type="button" class="ghost">Copy Output</button>
+        </div>
+        <label class="field-label" for="assembly">ARMv7 output</label>
+        <pre id="assembly"></pre>
+      </section>
+    </main>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>
