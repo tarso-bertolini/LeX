@@ -87,7 +87,6 @@
 (NUMBER, '5.0')
 (LPAREN, '(')
 (IDENTIFIER, 'A')
-(IDENTIFIER, 'MEM')
 (RPAREN, ')')
 (OPERATOR, '+')
 (RPAREN, ')')

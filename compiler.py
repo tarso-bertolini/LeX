@@ -273,17 +273,6 @@ class Parser:
                 raise ParserError("RES offset must be non-negative")
             return ResRef(offset)
 
-        # Backward-compatible sample syntax: (X MEM) -> load memory X
-        if (
-            len(items) == 2
-            and isinstance(items[0], Token)
-            and isinstance(items[1], Token)
-            and items[0].kind == TOKEN_IDENTIFIER
-            and items[1].kind == TOKEN_IDENTIFIER
-            and items[1].lexeme == "MEM"
-        ):
-            return MemLoad(items[0].lexeme)
-
         # (V MEMNAME) -> store expression V in MEMNAME and return V
         if (
             len(items) == 2
@@ -573,7 +562,8 @@ def gerarAssembly(tokens: List[Token]) -> str:
     return codegen.compile(exprs)
 
 def exibirResultados(resultados: List[float]) -> None:
-    print("=== Execution Results ===")
+    print("=== Execution Results (Python Simulation Only) ===")
+    print("WARNING: Real computational execution must happen inside Cpulator ARMv7!")
     for idx, r in enumerate(resultados):
         print(f"Line {idx}: {r:.1f}")
     print("=========================")

@@ -17,6 +17,8 @@ Implementamento da Fase 1 com:
 - Gerador de Assembly ARMv7 DEC1-SOC com VFP em 64 bits para Cpulator;
 - Demonstracao web user-friendly com Node.js + npm.
 
+Aviso: Durante o desenvolvimento, todas as contribuições dos alunos foram registradas em Pull Requests e Issues deste repositório, garantindo divisão correta das atribuições estipuladas no documento.
+
 ## Como Compilar, Executar e Testar
 
 O programa recebe um arquivo de entrada em formato `.rpn` e irá gerar o código assembly (`.s`) e registrará os tokens gerados em um arquivo texto (`_tokens.txt`).
