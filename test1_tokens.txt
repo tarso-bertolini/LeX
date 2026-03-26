@@ -52,7 +52,6 @@
 (LPAREN, '(')
 (LPAREN, '(')
 (IDENTIFIER, 'X')
-(IDENTIFIER, 'MEM')
 (RPAREN, ')')
 (NUMBER, '2.0')
 (OPERATOR, '*')
