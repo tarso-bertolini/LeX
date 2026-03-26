@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Eduardo Contin - GitHub: EduContin
+# Tarso Bertolini - GitHub: tarso-bertolini
+# Grupo Canvas: LeX
 """RPN lexer/parser and ARMv7 assembly generator.
 
 Implementation constraints honored:
@@ -139,7 +142,7 @@ class DFALexer:
                 continue
             if ch == ".":
                 if seen_dot:
-                    break
+                    raise LexerError(f"Malformed number (multiple dots) at line {self.line}")
                 seen_dot = True
                 self.buffer.append(self.advance() or "")
                 continue
@@ -498,14 +501,133 @@ class ARMv7Codegen:
         self.text_lines.append("    pop {r4, pc}")
 
 
-def compile_source(text: str) -> str:
-    lexer = DFALexer(text)
+
+# ==============================================================================
+# REQUIRED ALUNO FUNCTIONS 
+# ==============================================================================
+
+def lerArquivo(nomeArquivo: str) -> List[str]:
+    with open(nomeArquivo, 'r', encoding='utf-8') as f:
+        return f.readlines()
+
+def parseExpressao(linha: str) -> List[Token]:
+    lexer = DFALexer(linha)
     tokens = lexer.lex()
+    if tokens and tokens[-1].kind == TOKEN_EOL:
+        tokens.pop()
+    return tokens
+
+def avaliar_expr(expr: Expr, mem: Dict[str, float], history: List[float], current_idx: int) -> float:
+    if isinstance(expr, Number):
+        return float(expr.value)
+    if isinstance(expr, MemLoad):
+        return mem.get(expr.name, 0.0)
+    if isinstance(expr, MemStore):
+        v = avaliar_expr(expr.value, mem, history, current_idx)
+        mem[expr.name] = v
+        return v
+    if isinstance(expr, ResRef):
+        target = current_idx - expr.offset - 1
+        if target < 0 or target >= len(history):
+            return 0.0
+        return history[target]
+    if isinstance(expr, Binary):
+        left = avaliar_expr(expr.left, mem, history, current_idx)
+        right = avaliar_expr(expr.right, mem, history, current_idx)
+        if expr.op == '+': return left + right
+        if expr.op == '-': return left - right
+        if expr.op == '*': return left * right
+        if expr.op == '/': 
+            if right == 0: return 0.0
+            return left / right
+        if expr.op == '//':
+            if right == 0: return 0.0
+            return float(int(left) // int(right))
+        if expr.op == '%':
+            if right == 0: return 0.0
+            return float(int(left) % int(right))
+        if expr.op == '^':
+            return float(left ** int(right))
+    return 0.0
+
+def executarExpressao(tokens: List[Token], mem: Dict[str, float], history: List[float]) -> float:
+    if not tokens:
+        return 0.0
+    parse_tokens = tokens + [Token(TOKEN_EOL, "", 0, 0)]
+    parser = Parser(parse_tokens)
+    try:
+        expr = parser.parse_expr()
+        val = avaliar_expr(expr, mem, history, len(history))
+        history.append(val)
+        return val
+    except Exception as e:
+        return 0.0
+
+def gerarAssembly(tokens: List[Token]) -> str:
+    if not tokens or tokens[-1].kind != TOKEN_EOL:
+        tokens = list(tokens) + [Token(TOKEN_EOL, "", 0, 0)]
+        
     parser = Parser(tokens)
     exprs = parser.parse_program()
     codegen = ARMv7Codegen()
     return codegen.compile(exprs)
 
+def exibirResultados(resultados: List[float]) -> None:
+    print("=== Execution Results ===")
+    for idx, r in enumerate(resultados):
+        print(f"Line {idx}: {r:.1f}")
+    print("=========================")
+
+# ==============================================================================
+# LEXER TESTS REQUIRED
+# ==============================================================================
+
+def testar_analisador_lexico():
+    print("Running DFA Lexer Tests...")
+    
+    print("  Testing valid input: (3.14 2.0 +)")
+    tokens1 = parseExpressao("(3.14 2.0 +)")
+    assert len(tokens1) == 5, f"Expected 5 tokens, got {len(tokens1)}"
+    assert tokens1[1].kind == TOKEN_NUMBER and tokens1[1].lexeme == "3.14"
+    assert tokens1[2].kind == TOKEN_NUMBER and tokens1[2].lexeme == "2.0"
+    assert tokens1[3].kind == TOKEN_OPERATOR and tokens1[3].lexeme == "+"
+
+    print("  Testing valid input: (5 RES)")
+    tokens2 = parseExpressao("(5 RES)")
+    assert len(tokens2) == 4, f"Expected 4 tokens, got {len(tokens2)}"
+    assert tokens2[1].kind == TOKEN_NUMBER and tokens2[1].lexeme == "5"
+    assert tokens2[2].kind == TOKEN_RES and tokens2[2].lexeme == "RES"
+
+    print("  Testing valid input: (10.5 CONTADOR)")
+    tokens3 = parseExpressao("(10.5 CONTADOR)")
+    assert len(tokens3) == 4, f"Expected 4 tokens, got {len(tokens3)}"
+    assert tokens3[1].kind == TOKEN_NUMBER and tokens3[1].lexeme == "10.5"
+    assert tokens3[2].kind == TOKEN_IDENTIFIER and tokens3[2].lexeme == "CONTADOR"
+    
+    print("  Testing invalid input: (3.14.5 2.0 +)")
+    try:
+        parseExpressao("(3.14.5 2.0 +)")
+        assert False, "Should have raised LexerError for multiple dots"
+    except LexerError:
+        pass
+        
+    print("  Testing invalid input: 3,45")
+    try:
+        parseExpressao("3,45")
+        assert False, "Should have raised LexerError for comma"
+    except LexerError:
+        pass
+
+    print("Lexer tests passed successfully.\n")
+
+# ==============================================================================
+# MAIN REFACTOR
+# ==============================================================================
+
+def compile_source(text: str) -> str:
+    lexer = DFALexer(text)
+    tokens = lexer.lex()
+    return gerarAssembly(tokens)
 
 def main(argv: List[str]) -> int:
     if len(argv) == 2 and argv[1] == "--stdin":
@@ -514,25 +636,52 @@ def main(argv: List[str]) -> int:
         sys.stdout.write(asm)
         return 0
 
-    if len(argv) != 3:
-        print("Usage: python compiler.py <input.rpn> <output.s>")
-        print("   or: python compiler.py --stdin")
+    if len(argv) < 2:
+        print("Usage: python compiler.py <input.rpn>")
         return 1
+        
+    testar_analisador_lexico()
 
     input_path = argv[1]
-    output_path = argv[2]
+    output_s = input_path.rsplit('.', 1)[0] + ".s"
+    output_txt = input_path.rsplit('.', 1)[0] + "_tokens.txt"
 
-    with open(input_path, "r", encoding="utf-8") as src:
-        text = src.read()
+    linhas = lerArquivo(input_path)
+    
+    memoria: Dict[str, float] = {}
+    historico: List[float] = []
+    
+    all_tokens = []
+    all_tokens_out = []
+    
+    for _, linha in enumerate(linhas):
+        linha = linha.strip()
+        if not linha:
+            continue
+            
+        linha_tokens = parseExpressao(linha)
+        
+        all_tokens.extend(linha_tokens)
+        all_tokens.append(Token(TOKEN_EOL, "", 0, 0))
+        
+        for t in linha_tokens:
+            all_tokens_out.append(f"({t.kind}, '{t.lexeme}')")
+            
+        executarExpressao(linha_tokens, memoria, historico)
 
-    asm = compile_source(text)
-
-    with open(output_path, "w", encoding="utf-8") as out:
+    exibirResultados(historico)
+    
+    asm = gerarAssembly(all_tokens)
+    
+    with open(output_s, "w", encoding="utf-8") as out:
         out.write(asm)
+        
+    with open(output_txt, "w", encoding="utf-8") as out:
+        out.write('\n'.join(all_tokens_out))
 
-    print(f"Assembly generated: {output_path}")
+    print(f"Assembly generated: {output_s}")
+    print(f"Tokens saved: {output_txt}")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv))
