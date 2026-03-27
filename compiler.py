@@ -274,13 +274,11 @@ class Parser:
             return ResRef(offset)
 
         # (V MEMNAME) -> store expression V in MEMNAME and return V
-        if (
-            len(items) == 2
-            and isinstance(items[0], Expr)
-            and isinstance(items[1], Token)
-            and items[1].kind == TOKEN_IDENTIFIER
-        ):
-            return MemStore(items[1].lexeme, items[0])
+        if len(items) == 2 and isinstance(items[1], Token) and items[1].kind == TOKEN_IDENTIFIER:
+            if isinstance(items[0], Expr):
+                return MemStore(items[1].lexeme, items[0])
+            elif getattr(items[0], 'kind', None) == TOKEN_IDENTIFIER:
+                return MemStore(items[1].lexeme, MemLoad(items[0].lexeme))
 
         # (A B op)
         if (
@@ -292,7 +290,7 @@ class Parser:
         ):
             return Binary(items[2].lexeme, items[0], items[1])
 
-        raise ParserError("Invalid parenthesized expression form")
+        raise ParserError(f"Invalid parenthesized expression form: {items}")
 
     def at_end(self) -> bool:
         return self.index >= len(self.tokens)
@@ -633,8 +631,8 @@ def main(argv: List[str]) -> int:
     testar_analisador_lexico()
 
     input_path = argv[1]
-    output_s = input_path.rsplit('.', 1)[0] + ".s"
-    output_txt = input_path.rsplit('.', 1)[0] + "_tokens.txt"
+    output_s = argv[2] if len(argv) > 2 else "latest_assembly.s"
+    output_txt = "latest_tokens.txt"
 
     linhas = lerArquivo(input_path)
     
