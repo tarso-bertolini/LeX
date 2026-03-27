@@ -100,6 +100,8 @@ intop_done_2:
     vmul.f64 d0, d0, d1
     ldr r10, =mem_VAR
     vldr.f64 d1, [r10]
+    ldr r10, =mem_MEM
+    vstr.f64 d1, [r10]
     vadd.f64 d0, d0, d1
     ldr r10, =res_10
     vstr.f64 d0, [r10]
@@ -130,6 +132,7 @@ res_7: .double 0.0
 res_8: .double 0.0
 res_9: .double 0.0
 res_10: .double 0.0
+mem_MEM: .double 0.0
 mem_VAR: .double 0.0
 const_0: .double 3
 const_1: .double 2
