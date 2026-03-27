@@ -625,7 +625,7 @@ def main(argv: List[str]) -> int:
         return 0
 
     if len(argv) < 2:
-        print("Usage: python compiler.py <input.rpn>")
+        print("Usage: python compiler.py <input.txt>")
         return 1
         
     testar_analisador_lexico()

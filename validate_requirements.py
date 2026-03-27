@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parent
-SUITE = ROOT / "requirements_suite.rpn"
+SUITE = ROOT / "requirements_suite.txt"
 OUT = ROOT / "requirements_output.s"
 
 

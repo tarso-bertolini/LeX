@@ -21,19 +21,19 @@ Aviso: Durante o desenvolvimento, todas as contribuições dos alunos foram regi
 
 ## Como Compilar, Executar e Testar
 
-O programa recebe um arquivo de entrada em formato `.rpn` e irá gerar o código assembly (`.s`) e registrará os tokens gerados em um arquivo texto (`_tokens.txt`).
+O programa recebe um arquivo de entrada em formato `.txt` e irá gerar o código assembly (`.s`) e registrará os tokens gerados em um arquivo texto (`_tokens.txt`).
 
 1. **Executando o Programa:**
 
 ```bash
-python3 compiler.py test1.rpn
+python3 compiler.py test1.txt
 ```
 
 2. **Testes Fornecidos (Minimo 3, 10+ linhas):**
 ```bash
-python3 compiler.py test1.rpn
-python3 compiler.py test2.rpn
-python3 compiler.py test3.rpn
+python3 compiler.py test1.txt
+python3 compiler.py test2.txt
+python3 compiler.py test3.txt
 ```
 
 3. **Validação Automática:**
